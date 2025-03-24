@@ -1,42 +1,49 @@
-import { serve } from "@hono/node-server";
-import { OpenAPIHono } from "@hono/zod-openapi";
-import route from "@/route.js";
+import 'dotenv/config';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import loginRoute from './routes/login-route.js';
+import { HTTPException } from 'hono/http-exception';
 
-const app = new OpenAPIHono().basePath("/api/v1");
+const app = new Hono();
 
-app.openapi(
-  route,
-  (c) => {
-    const { id } = c.req.valid("param");
-    return c.json(
-      {
-        id,
-        age: 30,
-        name: "Jhon Thor",
-      },
-      200
-    );
-  },
-  // Hook
-  (result, c) => {
-    if (!result.success) {
-      return c.json(
-        {
-          code: 400,
-          message: "Validation Error",
-        },
-        400
-      );
-    }
-  }
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN!,
+    credentials: true,
+  })
 );
 
-app.doc31("/docs", {
-  openapi: "3.1.1",
-  info: {
-    version: "1.0.0",
-    title: "Repair Log API",
-  },
+app.basePath('/api').route('/login', loginRoute);
+
+app.all('*', (c) => {
+  return c.json(
+    {
+      status: 'fail',
+      message: 'Not found',
+    },
+    404
+  );
+});
+
+app.onError((err, c) => {
+  if (err instanceof HTTPException) {
+    return c.json(
+      {
+        status: 'fail',
+        message: err.message,
+      },
+      err.status
+    );
+  } else {
+    return c.json(
+      {
+        status: 'error',
+        message: 'Something went wrong',
+      },
+      500
+    );
+  }
 });
 
 serve(
